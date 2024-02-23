@@ -9,3 +9,6 @@ To enable this extension, run Isaac Sim with the flags --ext-folder {path_to_ext
 
 > please refer this link : https://docs.omniverse.nvidia.com/isaacsim/latest/introductory_tutorials/tutorial_intro_workflows.html#isaac-sim-extension-workflow 
 
+<p align="center">
+    <img src="./img/demo_img.png" height="200">
+</p>
