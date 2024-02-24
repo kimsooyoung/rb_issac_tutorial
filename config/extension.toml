@@ -32,3 +32,6 @@ name = "RoadBalanceEdu.HelloManipulator"
 
 [[python.module]]
 name = "RoadBalanceEdu.HelloMultiRobot"
+
+[[python.module]]
+name = "RoadBalanceEdu.HelloMultiTask"
