@@ -22,10 +22,12 @@ from omni.isaac.core.prims.rigid_prim import RigidPrim
 from omni.isaac.sensor import Camera
 
 import omni.isaac.core.utils.numpy.rotations as rot_utils
+from omni.isaac.core import SimulationContext
 
 from pxr import PhysxSchema
 
 import numpy as np
+import h5py
 
 class FrankaPlaying(BaseTask):
     #NOTE: we only cover here a subset of the task functions that are available,
@@ -96,6 +98,34 @@ class FrankaPlaying(BaseTask):
         self._camera1.add_motion_vectors_to_frame()
         self._camera1.set_visibility(False)
 
+        self._camera2 = Camera(
+            prim_path="/World/top_camera",
+            position=np.array([0.0, 0.0, 5.0]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    0, 90, 0
+                ]), degrees=True),
+        )
+        self._camera2.initialize()
+        self._camera2.set_visibility(False)
+
+        self._camera3 = Camera(
+            prim_path="/World/front_camera",
+            position=np.array([1.0, 0.0, 0.3]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    0, 0, 180
+                ]), degrees=True),
+        )
+        self._camera3.set_clipping_range(0.1, 1000000.0)
+        self._camera3.set_focal_length(1.0)
+        self._camera3.initialize()
+        self._camera3.set_visibility(False)
+
         for bins in range(self._num_bins):
             add_reference_to_stage(
                 usd_path=self._bin_asset_path, 
@@ -134,6 +164,7 @@ class FrankaPlaying(BaseTask):
     def get_observations(self):
 
         current_joint_positions = self._franka.get_joint_positions()
+        currnet_joint_velocities = self._franka.get_joint_velocities()
 
         self._pick_position1, _ = self._nuts[0].get_world_pose()
         self._pick_position1[2] += self._nuts_offset
@@ -144,6 +175,7 @@ class FrankaPlaying(BaseTask):
         observations = {
             self._franka.name: {
                 "joint_positions": current_joint_positions,
+                "joint_velocities": currnet_joint_velocities,
             },
             "nut0_geom": {
                 "position": self._pick_position1,
@@ -154,38 +186,6 @@ class FrankaPlaying(BaseTask):
                 "goal_position": self._goal_position[1],
             },
         }
-
-
-        # if self._task_event == 0 or self._task_event == 1:
-        #     self._pick_position, _ = self._nuts[self._task_event].get_world_pose()
-        #     self._pick_position[2] += self._nuts_offset
-
-        #     observations = {
-        #         "task_event": self._task_event,
-        #         self._franka.name: {
-        #             "joint_positions": current_joint_positions,
-        #         },
-        #         "nut0_geom": {
-        #             "position": self._pick_position,
-        #             "goal_position": self._goal_position[self._task_event],
-        #         },
-        #     }
-
-        # if self._task_event == 2:
-        #     self._pick_position, _ = self._nuts[1].get_world_pose()
-        #     self._pick_position[2] += self._nuts_offset
-
-        #     observations = {
-        #         "task_event": self._task_event,
-        #         self._franka.name: {
-        #             "joint_positions": current_joint_positions,
-        #         },
-        #         "nut1_geom": {
-        #             "position": self._pick_position,
-        #             "goal_position": self._goal_position[1],
-        #         },
-        #     }
-
 
         return observations
 
@@ -219,10 +219,26 @@ class HelloManip(BaseSample):
         self._ik_damping = 0.1
 
         self._event = 0
+        self._step_size = 0.01
+
+        self._f = h5py.File('/home/kimsooyoung/Documents/franka_nuts_pick_and_place.hdf5','w')
+        self._sim_time = self._f.create_group("simulation_time")
+        self._joint_pos_f = self._f.create_group("joint_positions")
+        self._joint_vel_f = self._f.create_group("joint_velocities")
+
+        img_f = self._f.create_group("camera_images")
+        self._camera1_f = img_f.create_group("camera1")
+        self._camera2_f = img_f.create_group("camera2")
+        self._camera3_f = img_f.create_group("camera3")
+
+        self._joint_positions = []
+        self._joint_velocities = []
+
         return
 
     def setup_scene(self):
         world = self.get_world()
+        self.simulation_context = SimulationContext()
         self._setup_simulation()
 
         # We add the task to the world here
@@ -268,13 +284,18 @@ class HelloManip(BaseSample):
     def physics_step(self, step_size):
         # Gets all the tasks observations
         current_observations = self._world.get_observations()
-        # print(current_observations["task_event"])
+        current_time = self.simulation_context.current_time
+        current_joint_pos = current_observations["fancy_franka"]["joint_positions"]
+        current_joint_vel = current_observations["fancy_franka"]["joint_velocities"]
+        # print(step_size)
+
+        self._sim_time.create_dataset(f"{current_time}", data=current_time)
 
         if self._event == 0:
             actions = self._controller.forward(
                 picking_position=current_observations["nut0_geom"]["position"],
                 placing_position=current_observations["nut0_geom"]["goal_position"],
-                current_joint_positions=current_observations["fancy_franka"]["joint_positions"],
+                current_joint_positions=current_joint_pos,
             )
             self._franka.apply_action(actions)
 
@@ -282,27 +303,14 @@ class HelloManip(BaseSample):
             actions = self._controller.forward(
                 picking_position=current_observations["nut1_geom"]["position"],
                 placing_position=current_observations["nut1_geom"]["goal_position"],
-                current_joint_positions=current_observations["fancy_franka"]["joint_positions"],
+                current_joint_positions=current_joint_pos,
             )
             self._franka.apply_action(actions)
 
-        # if current_observations["task_event"] == 0:
-        #     actions = self._controller.forward(
-        #         picking_position=current_observations["nut0_geom"]["position"],
-        #         placing_position=current_observations["nut0_geom"]["goal_position"],
-        #         current_joint_positions=current_observations["fancy_franka"]["joint_positions"],
-        #     )
-        #     self._franka.apply_action(actions)
-
-        # elif current_observations["task_event"] == 2:
-        #     actions = self._controller.forward(
-        #         picking_position=current_observations["nut1_geom"]["position"],
-        #         placing_position=current_observations["nut1_geom"]["goal_position"],
-        #         current_joint_positions=current_observations["fancy_franka"]["joint_positions"],
-        #     )
-        #     self._franka.apply_action(actions)
         if self._controller.is_done():
             self._controller.reset()
             self._event += 1
+            if self._event == 2:
+                self._f.close()
             # self._world.pause()
         return

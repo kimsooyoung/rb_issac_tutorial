@@ -16,8 +16,10 @@ from omni.isaac.sensor import Camera
 from omni.isaac.core import World
 
 import omni.isaac.core.utils.numpy.rotations as rot_utils
+from omni.isaac.core import SimulationContext
 
 from PIL import Image
+import h5py
 import cv2
 
 class HelloCamera(BaseSample):
@@ -25,6 +27,9 @@ class HelloCamera(BaseSample):
         super().__init__()
 
         self.view_count = 0
+
+        self._time_list = []
+        self._img_list = []
 
         return
 
@@ -51,6 +56,13 @@ class HelloCamera(BaseSample):
                 scale=np.array([0.5015, 0.5015, 0.5015]), # most arguments accept mainly numpy arrays.
                 color=np.array([0, 0, 1.0]), # RGB channels, going from 0-1
             ))
+        
+        self.simulation_context = SimulationContext()
+
+        self._f = h5py.File('/home/kimsooyoung/Documents/cam_test.hdf5','w')
+        self._group = self._f.create_group("isaac_save_data")
+        # self._camera_f = self._f.create_group("camera")
+
         return
 
     async def setup_post_load(self):
@@ -64,23 +76,39 @@ class HelloCamera(BaseSample):
 
     def physics_callback(self, step_size):
 
-        if self.view_count == 100:
+        self._camera.get_current_frame()
 
-            self._camera.get_current_frame()
-            img = Image.fromarray(self._camera.get_rgba()[:, :, :3])
-            img.save("./camera_opencv.png")
-            
-            # PIL image to cv2
-            cv_img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+        if self.view_count % 100 == 0:
 
-            # image show
-            cv2.imshow("image", cv_img)
-            if cv2.waitKey(0) == 27:
-                pass
+            current_time = self.simulation_context.current_time
 
-            self.view_count = 0
+            self._time_list.append(current_time)
+            self._img_list.append(self._camera.get_rgba()[:, :, :3])
+
+            # img = Image.fromarray(self._camera.get_rgba()[:, :, :3])
+            # print(type(self._camera.get_rgba())) 
+            # print(type(img))
+
+            # img.save("./camera_opencv.png")
+
+            # # PIL image to cv2
+            # cv_img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+
+            # # image show
+            # cv2.imshow("image", cv_img)
+            # if cv2.waitKey(0) == 27:
+            #     pass
+
 
         self.view_count += 1
+
+
+        if self.view_count < 500:
+            print(self.view_count)
+
+        if self.view_count == 500:
+            self.world_cleanup()
+
 
     # async def setup_pre_reset(self):
     #     return
@@ -90,4 +118,11 @@ class HelloCamera(BaseSample):
 
     def world_cleanup(self):
         cv2.destroyAllWindows()
+
+        self._group.create_dataset(f"sim_time", data=self._time_list, compression='gzip', compression_opts=9)
+        self._group.create_dataset(f"image", data=self._img_list, compression='gzip', compression_opts=9)
+
+        self._f.close()
+        print("Data saved")
+
         return
