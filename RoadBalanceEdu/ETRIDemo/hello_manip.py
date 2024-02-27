@@ -55,9 +55,14 @@ class HelloManip(BaseSample):
         self._bins = []
         self._bins_offset = 0.1
 
-        self._nut_position_x = np.array([0.28, 0.4])
-        self._nut_position_y = np.array([-0.35, -0.15])
-        self._nut_position_z = 0.2
+
+        self._nuts_position = np.array([
+            [0.35, -0.22, 0.2],
+            [0.30, -0.28, 0.2],
+        ])
+        # self._nut_position_x = np.array([0.28, 0.4])
+        # self._nut_position_y = np.array([-0.35, -0.15])
+        # self._nut_position_z = 0.2
         self._nuts = []
         self._nuts_offset = 0.005
 
@@ -96,11 +101,11 @@ class HelloManip(BaseSample):
 
         for nut in range(self._num_nuts):
             
-            nut_position = np.array([
-                np.random.randint(*(self._nut_position_x*100)) / 100,
-                np.random.randint(*(self._nut_position_y*100)) / 100,
-                self._nut_position_z,
-            ])
+            # nut_position = np.array([
+            #     np.random.randint(*(self._nut_position_x*100)) / 100,
+            #     np.random.randint(*(self._nut_position_y*100)) / 100,
+            #     self._nut_position_z,
+            # ])
 
             add_reference_to_stage(
                 usd_path=self._nut_asset_path, 
@@ -110,7 +115,7 @@ class HelloManip(BaseSample):
                 GeometryPrim(
                     prim_path=f"/World/nut{nut}",
                     name=f"nut{nut}_geom",
-                    position=nut_position / get_stage_units(),
+                    position=self._nuts_position[nut] / get_stage_units(),
                     collision=True,
                     # mass=0.1, # kg
                 )

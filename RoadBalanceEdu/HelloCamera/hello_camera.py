@@ -12,17 +12,37 @@ import numpy as np
 
 # Note: checkout the required tutorials at https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html
 from omni.isaac.core.objects import DynamicCuboid
+from omni.isaac.sensor import Camera
+from omni.isaac.core import World
 
+import omni.isaac.core.utils.numpy.rotations as rot_utils
 
-class HelloWorld(BaseSample):
+from PIL import Image
+import cv2
+
+class HelloCamera(BaseSample):
     def __init__(self) -> None:
         super().__init__()
+
+        self.view_count = 0
+
         return
 
     def setup_scene(self):
 
         world = self.get_world()
         world.scene.add_default_ground_plane()
+        
+        self._camera = Camera(
+            prim_path="/World/camera",
+            position=np.array([0.0, 0.0, 25.0]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(np.array([0, 90, 0]), degrees=True),
+        )
+        self._camera.initialize()
+        self._camera.add_motion_vectors_to_frame()
+
         fancy_cube = world.scene.add(
             DynamicCuboid(
                 prim_path="/World/random_cube", # The prim path of the cube in the USD stage
@@ -33,28 +53,34 @@ class HelloWorld(BaseSample):
             ))
         return
 
-    # Here we assign the class's variables
-    # this function is called after load button is pressed
-    # regardless starting from an empty stage or not
-    # this is called after setup_scene and after
-    # one physics time step to propagate appropriate
-    # physics handles which are needed to retrieve
-    # many physical properties of the different objects
     async def setup_post_load(self):
-        self._world = self.get_world()
-        self._cube = self._world.scene.get_object("fancy_cube")
-        self._world.add_physics_callback("sim_step", callback_fn=self.print_cube_info) #callback names have to be unique
+
+        world = self.get_world()
+        self._camera.add_motion_vectors_to_frame()
+        self._world.add_physics_callback("sim_step", callback_fn=self.physics_callback) #callback names have to be unique
+        cv2.namedWindow('image')
+
         return
 
-    # here we define the physics callback to be called before each physics step, all physics callbacks must take
-    # step_size as an argument
-    def print_cube_info(self, step_size):
-        position, orientation = self._cube.get_world_pose()
-        linear_velocity = self._cube.get_linear_velocity()
-        # will be shown on terminal
-        print("Cube position is : " + str(position))
-        print("Cube's orientation is : " + str(orientation))
-        print("Cube's linear velocity is : " + str(linear_velocity))
+    def physics_callback(self, step_size):
+
+        if self.view_count == 100:
+
+            self._camera.get_current_frame()
+            img = Image.fromarray(self._camera.get_rgba()[:, :, :3])
+            img.save("./camera_opencv.png")
+            
+            # PIL image to cv2
+            cv_img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+
+            # image show
+            cv2.imshow("image", cv_img)
+            if cv2.waitKey(0) == 27:
+                pass
+
+            self.view_count = 0
+
+        self.view_count += 1
 
     # async def setup_pre_reset(self):
     #     return
@@ -62,5 +88,6 @@ class HelloWorld(BaseSample):
     # async def setup_post_reset(self):
     #     return
 
-    # def world_cleanup(self):
-    #     return
+    def world_cleanup(self):
+        cv2.destroyAllWindows()
+        return
