@@ -37,7 +37,8 @@ name = "RoadBalanceEdu.HelloMultiRobot"
 name = "RoadBalanceEdu.HelloMultiTask"
 
 [[python.module]]
-name = "RoadBalanceEdu.ETRIDemo"
+name = "RoadBalanceEdu.HelloCamera"
 
 [[python.module]]
-name = "RoadBalanceEdu.HelloCamera"
+name = "RoadBalanceEdu.ETRIDemo"
+
