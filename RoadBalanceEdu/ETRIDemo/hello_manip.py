@@ -55,10 +55,16 @@ class FrankaPlaying(BaseTask):
         self._nuts = []
         self._nuts_offset = 0.005
 
-        self._goal_position = np.array([0, 0, 0])
-        self._target_position = np.array([0, 0, 0])
+        self._goal_position = np.array([
+            [0.35,  0.25, 0.2],
+            [0.30,  0.25, 0.2],
+        ])
+
+        self._pick_position = np.array([0, 0, 0])
 
         self._task_achieved = False
+        self._task_event = 0
+
         return
 
     # Here we setup all the assets that we care about in this task.
@@ -72,12 +78,6 @@ class FrankaPlaying(BaseTask):
                 name="fancy_franka"
             )
         )
-
-        # self._franka_ee = self._world.scene.get_object("/World/Fancy_Franka/panda_hand")
-        # print(self._franka_ee)
-        ee_position, _ = self._franka.get_world_pose()
-        print(ee_position)
-
 
         # Exception: You can not define translation and position at the same time
         self._camera1 = Camera(
@@ -94,7 +94,6 @@ class FrankaPlaying(BaseTask):
         self._camera1.set_clipping_range(0.1, 1000000.0)
         self._camera1.initialize()
         self._camera1.add_motion_vectors_to_frame()
-
 
         for bins in range(self._num_bins):
             add_reference_to_stage(
@@ -113,7 +112,6 @@ class FrankaPlaying(BaseTask):
             self._bins.append(_bin)
 
         for nut in range(self._num_nuts):
-
             add_reference_to_stage(
                 usd_path=self._nut_asset_path, 
                 prim_path=f"/World/nut{nut}",
@@ -134,36 +132,64 @@ class FrankaPlaying(BaseTask):
     # Information exposed to solve the task is returned from the task through get_observations
     def get_observations(self):
 
-        self._target_position, _ = self._nuts[0].get_world_pose()
-        self._target_position[2] += self._nuts_offset
+        if self._task_event == 0 or self._task_event == 1:
+            self._pick_position, _ = self._nuts[self._task_event].get_world_pose()
+            self._pick_position[2] += self._nuts_offset
 
-        self._goal_position, _ = self._bins[1].get_world_pose()
-        self._goal_position[2] += self._bins_offset
+            current_joint_positions = self._franka.get_joint_positions()
+            observations = {
+                "task_event": self._task_event,
+                self._franka.name: {
+                    "joint_positions": current_joint_positions,
+                },
+                "nut0_geom": {
+                    "position": self._pick_position,
+                    "goal_position": self._goal_position[self._task_event],
+                },
+            }
 
-        current_joint_positions = self._franka.get_joint_positions()
-        observations = {
-            self._franka.name: {
-                "joint_positions": current_joint_positions,
-            },
-            self._nuts[0].name: {
-                "position": self._target_position,
-                "goal_position": self._goal_position,
-            },
-            self._nuts[1].name: {
-                "position": self._target_position,
-                "goal_position": self._goal_position,
-            },
-        }
+        if self._task_event == 2:
+            self._pick_position, _ = self._nuts[1].get_world_pose()
+            self._pick_position[2] += self._nuts_offset
+
+            current_joint_positions = self._franka.get_joint_positions()
+            observations = {
+                "task_event": self._task_event,
+                self._franka.name: {
+                    "joint_positions": current_joint_positions,
+                },
+                "nut1_geom": {
+                    "position": self._pick_position,
+                    "goal_position": self._goal_position[1],
+                },
+            }
+
+
         return observations
 
     # Called before each physics step,
     # for instance we can check here if the task was accomplished by
     # changing the color of the cube once its accomplished
     def pre_step(self, control_index, simulation_time):
-        self._target_position, _ = self._nuts[0].get_world_pose()
-        if not self._task_achieved and np.mean(np.abs(self._goal_position - self._target_position)) < 0.02:
-            # self._nuts[0].get_applied_visual_material().set_color(color=np.array([0, 1.0, 0]))
-            self._task_achieved = True
+
+        if self._task_event == 0:
+            self._target_position, _ = self._nuts[self._task_event].get_world_pose()
+            if np.mean(np.abs(self._goal_position - self._target_position)) < 0.01:
+                # self._task_achieved = True
+                self._task_event += 1
+                self._arrive_step_index = control_index
+        
+        # elif self._task_event == 1:
+        #     print(control_index - self._arrive_step_index)
+        #     if control_index - self._arrive_step_index == 5000:
+        #         self._task_event += 1
+
+        # elif self._task_event == 2:
+        #     self._target_position, _ = self._nuts[1].get_world_pose()
+        #     if np.mean(np.abs(self._goal_position - self._target_position)) < 0.02:
+        #         self._task_achieved = True
+        #         # self._task_event += 1
+
         return
 
     # Called after each reset,
@@ -237,12 +263,21 @@ class HelloManip(BaseSample):
     def physics_step(self, step_size):
         # Gets all the tasks observations
         current_observations = self._world.get_observations()
-        actions = self._controller.forward(
-            picking_position=current_observations["nut0_geom"]["position"],
-            placing_position=current_observations["nut0_geom"]["goal_position"],
-            current_joint_positions=current_observations["fancy_franka"]["joint_positions"],
-        )
-        self._franka.apply_action(actions)
+        print(current_observations["task_event"])
+        if current_observations["task_event"] == 0:
+            actions = self._controller.forward(
+                picking_position=current_observations["nut0_geom"]["position"],
+                placing_position=current_observations["nut0_geom"]["goal_position"],
+                current_joint_positions=current_observations["fancy_franka"]["joint_positions"],
+            )
+            self._franka.apply_action(actions)
+        elif current_observations["task_event"] == 2:
+            actions = self._controller.forward(
+                picking_position=current_observations["nut1_geom"]["position"],
+                placing_position=current_observations["nut1_geom"]["goal_position"],
+                current_joint_positions=current_observations["fancy_franka"]["joint_positions"],
+            )
+            self._franka.apply_action(actions)
         if self._controller.is_done():
             self._world.pause()
         return
