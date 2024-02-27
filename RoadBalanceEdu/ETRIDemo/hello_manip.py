@@ -13,12 +13,15 @@ from omni.isaac.core.tasks import BaseTask
 from omni.isaac.franka import Franka
 
 from omni.isaac.core.utils.stage import add_reference_to_stage, get_stage_units
-from omni.isaac.core.utils.prims import get_prim_at_path
+from omni.isaac.core.physics_context.physics_context import PhysicsContext
 from omni.isaac.core.utils.rotations import euler_angles_to_quat
 from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.core.prims.geometry_prim import GeometryPrim
+from omni.isaac.core.utils.prims import get_prim_at_path
 from omni.isaac.core.prims.rigid_prim import RigidPrim
-from omni.isaac.core.physics_context.physics_context import PhysicsContext
+from omni.isaac.sensor import Camera
+
+import omni.isaac.core.utils.numpy.rotations as rot_utils
 
 from pxr import PhysxSchema
 
@@ -69,6 +72,29 @@ class FrankaPlaying(BaseTask):
                 name="fancy_franka"
             )
         )
+
+        # self._franka_ee = self._world.scene.get_object("/World/Fancy_Franka/panda_hand")
+        # print(self._franka_ee)
+        ee_position, _ = self._franka.get_world_pose()
+        print(ee_position)
+
+
+        # Exception: You can not define translation and position at the same time
+        self._camera1 = Camera(
+            prim_path="/World/Fancy_Franka/panda_hand/hand_camera",
+            # position=np.array([0.088, 0.0, 0.926]),
+            translation=np.array([0.1, 0.0, -0.1]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    180, -90 - 25, 0
+                ]), degrees=True),
+        )
+        self._camera1.set_clipping_range(0.1, 1000000.0)
+        self._camera1.initialize()
+        self._camera1.add_motion_vectors_to_frame()
+
 
         for bins in range(self._num_bins):
             add_reference_to_stage(
