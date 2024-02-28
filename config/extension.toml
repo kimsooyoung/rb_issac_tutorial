@@ -43,6 +43,9 @@ name = "RoadBalanceEdu.HelloCamera"
 name = "RoadBalanceEdu.HelloLight"
 
 [[python.module]]
+name = "RoadBalanceEdu.HelloDeformable"
+
+[[python.module]]
 name = "RoadBalanceEdu.FrankaNuts"
 
 [[python.module]]
