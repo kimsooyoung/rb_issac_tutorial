@@ -46,6 +46,10 @@ class HelloLight(BaseSample):
         distantLight = UsdLux.DistantLight.Define(stage, Sdf.Path("/World/distantLight"))
         distantLight.CreateIntensityAttr(1000)
 
+        ## Rotatation and translation of the light
+        # distantLight.AddRotateXYZOp().Set((-36, 36, 0))
+        # distantLight.AddTranslateOp().Set(Gf.Vec3f(650.0, 0.0, 1150.0))
+
         return
 
     # Here we assign the class's variables

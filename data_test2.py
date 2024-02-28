@@ -2,7 +2,8 @@ import h5py
 import numpy as np
 import pylab as plt
 
-file_name = "./franka_nuts_pick_and_place.hdf5"
+# file_name = "./franka_nuts_pick_and_place.hdf5"
+file_name = "./franka_nuts_table.hdf5"
 
 with h5py.File(file_name, 'r') as f:
 

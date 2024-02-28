@@ -16,8 +16,16 @@ from omni.isaac.core.utils.nucleus import get_assets_root_path
 from omni.isaac.core.utils.prims import get_prim_at_path
 from omni.isaac.core.utils.stage import add_reference_to_stage
 from omni.isaac.examples.base_sample import BaseSample
+from omni.isaac.core import SimulationContext
 from omni.isaac.franka.franka import Franka
-from pxr import Gf, PhysxSchema, Usd, UsdPhysics, UsdShade, UsdGeom, Sdf, Tf
+from omni.isaac.sensor import Camera
+
+import omni.isaac.core.utils.numpy.rotations as rot_utils
+
+import omni.usd
+import h5py
+
+from pxr import Gf, PhysxSchema, Usd, UsdPhysics, UsdShade, UsdGeom, Sdf, Tf, UsdLux
 
 from .nut_bolt_controller import NutBoltController
 
@@ -87,6 +95,14 @@ class FrankaNutAndBolt(BaseSample):
         self._sim_dt = 1.0 / self._time_steps_per_second
         self._fsm_update_dt = 1.0 / self._fsm_update_rate
 
+        self._sim_time_list = []
+        self._joint_positions = []
+        self._joint_velocities = []
+
+        self._camera1_img = []
+        self._camera2_img = []
+        self._camera3_img = []
+
         return
 
     def setup_scene(self):
@@ -108,6 +124,22 @@ class FrankaNutAndBolt(BaseSample):
         world = self.get_world()
 
         world.scene.add_default_ground_plane()
+        stage = omni.usd.get_context().get_stage()
+        self.simulation_context = SimulationContext()
+
+        # Change Default SphereLight Intensity
+        sphereLight = stage.GetPrimAtPath("/World/defaultGroundPlane/SphereLight")
+        sphereLightIntensity = sphereLight.GetAttribute("intensity")
+        sphereLightIntensity.Set(10000)
+
+        # Add Distance Light
+        distantLight = UsdLux.DistantLight.Define(stage, Sdf.Path("/World/distantLight"))
+        distantLight.CreateIntensityAttr(300)
+
+        # Add New Sphere Light
+        new_sphereLight = UsdLux.SphereLight.Define(stage, Sdf.Path("/World/sphereLight"))
+        new_sphereLight.CreateIntensityAttr(20000)
+        new_sphereLight.AddTranslateOp().Set(Gf.Vec3f(3.0, 0.0, 2.5))
 
         world.scene.add(XFormPrim(prim_path="/World/collisionGroups", name="collision_groups_xform"))
         self._setup_simulation()
@@ -155,7 +187,44 @@ class FrankaNutAndBolt(BaseSample):
             world.scene.add(GeometryPrim(prim_path=f"/World/env/nut{nut}", name=f"nut{nut}_geom"))
 
         # add_franka_assets
-        world.scene.add(Franka(prim_path="/World/env/franka", name=f"franka"))
+        self._franka = world.scene.add(Franka(prim_path="/World/env/franka", name=f"franka"))
+
+        self._camera1 = Camera(
+            prim_path="/World/env/franka/panda_hand/hand_camera",
+            # position=np.array([0.088, 0.0, 0.926]),
+            translation=np.array([0.1, 0.0, -0.1]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    180, -90 - 25, 0
+                ]), degrees=True),
+        )
+        self._camera1.set_clipping_range(0.1, 1000000.0)
+        self._camera1.initialize()
+        self._camera1.add_motion_vectors_to_frame()
+        self._camera1.set_visibility(False)
+
+        self._camera2 = Camera(
+            prim_path="/World/top_camera",
+            position=np.array([0.5, 0.0, 5.0]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    0, 90, 0
+                ]), degrees=True),
+        )
+        self._camera2.initialize()
+        self._camera2.set_visibility(True)
+
+        # HDF Data Collection Setup
+        self._save_count = 0
+        self._f = h5py.File('/home/kimsooyoung/Documents/franka_nuts_table.hdf5','w')
+        self._group_f = self._f.create_group("isaac_dataset")
+        self._img_f = self._group_f.create_group("camera_images")
+
+
         return
 
     async def setup_post_load(self):
@@ -173,10 +242,51 @@ class FrankaNutAndBolt(BaseSample):
         self._franka.gripper.open()
         self._rbApi2 = UsdPhysics.RigidBodyAPI.Apply(self._vibra_table_xform.prim.GetPrim())
         self._world.add_physics_callback(f"sim_step", callback_fn=self.physics_step)
+
+        self._camera3 = Camera(
+            prim_path="/World/front_camera",
+            position=self._franka_position + np.array([1.0, 0.0, 0.3 + self._table_height]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    0, 0, 180
+                ]), degrees=True),
+        )
+        self._camera3.set_clipping_range(0.1, 1000000.0)
+        self._camera3.set_focal_length(1.0)
+        self._camera3.initialize()
+        self._camera3.set_visibility(False)
+
         await self._world.play_async()
         return
 
     def physics_step(self, step_size):
+
+        self._camera1.get_current_frame()
+        self._camera2.get_current_frame()
+        self._camera3.get_current_frame()
+
+        current_time = self.simulation_context.current_time
+        current_joint_pos = self._franka.get_joint_positions()
+        current_joint_vel = self._franka.get_joint_velocities()
+
+        if self._save_count % 100 == 0:
+
+            self._sim_time_list.append(current_time)
+            self._joint_positions.append(current_joint_pos)
+            self._joint_velocities.append(current_joint_vel)
+
+            self._camera1_img.append(self._camera1.get_rgba()[:, :, :3])
+            self._camera2_img.append(self._camera2.get_rgba()[:, :, :3])
+            self._camera3_img.append(self._camera3.get_rgba()[:, :, :3])
+
+            print("Collecting data...")
+        elif self._save_count > 2000:
+            self.world_cleanup()
+
+        self._save_count += 1
+
         if self._controller.is_paused():
             if self._controller._i >= min(self._num_nuts, self._num_bolts):
                 self._rbApi2.CreateVelocityAttr().Set(Gf.Vec3f(0.0, 0.0, 0.0))
@@ -506,4 +616,19 @@ class FrankaNutAndBolt(BaseSample):
 
     def world_cleanup(self):
         self._controller = None
+
+        self._group_f.create_dataset(f"sim_time", data=self._sim_time_list, compression='gzip', compression_opts=9)
+        self._group_f.create_dataset(f"joint_positions", data=self._joint_positions, compression='gzip', compression_opts=9)
+        self._group_f.create_dataset(f"joint_velocities", data=self._joint_velocities, compression='gzip', compression_opts=9)
+
+        self._img_f.create_dataset(f"hand_camera", data=self._camera1_img, compression='gzip', compression_opts=9)
+        self._img_f.create_dataset(f"top_camera", data=self._camera2_img, compression='gzip', compression_opts=9)
+        self._img_f.create_dataset(f"front_camera", data=self._camera3_img, compression='gzip', compression_opts=9)
+
+        self._f.close()
+        print("Data saved")
+
+        self._save_count = 0
+        self._world.pause()
+
         return
