@@ -205,6 +205,17 @@ class FrankaPlaying(BaseTask):
         self._task_achieved = False
         return
 
+    @property
+    def camera1(self):
+        return self._camera1
+    
+    @property
+    def camera2(self):
+        return self._camera2
+    
+    @property
+    def camera3(self):
+        return self._camera3
 
 class HelloManip(BaseSample):
     def __init__(self) -> None:
@@ -221,18 +232,13 @@ class HelloManip(BaseSample):
         self._event = 0
         self._step_size = 0.01
 
-        self._f = h5py.File('/home/kimsooyoung/Documents/franka_nuts_pick_and_place.hdf5','w')
-        self._sim_time = self._f.create_group("simulation_time")
-        self._joint_pos_f = self._f.create_group("joint_positions")
-        self._joint_vel_f = self._f.create_group("joint_velocities")
-
-        img_f = self._f.create_group("camera_images")
-        self._camera1_f = img_f.create_group("camera1")
-        self._camera2_f = img_f.create_group("camera2")
-        self._camera3_f = img_f.create_group("camera3")
-
+        self._sim_time_list = []
         self._joint_positions = []
         self._joint_velocities = []
+
+        self._camera1_img = []
+        self._camera2_img = []
+        self._camera3_img = []
 
         return
 
@@ -241,8 +247,15 @@ class HelloManip(BaseSample):
         self.simulation_context = SimulationContext()
         self._setup_simulation()
 
+        self._f = h5py.File('/home/kimsooyoung/Documents/franka_nuts_pick_and_place.hdf5','w')
+        self._group_f = self._f.create_group("isaac_dataset")
+
+        self._save_count = 0
+        self._img_f = self._group_f.create_group("camera_images")
+
         # We add the task to the world here
-        world.add_task(FrankaPlaying(name="my_first_task"))
+        self._franka_playing = FrankaPlaying(name="my_first_task")
+        world.add_task(self._franka_playing)
         return
 
     async def setup_post_load(self):
@@ -255,6 +268,9 @@ class HelloManip(BaseSample):
             gripper=self._franka.gripper,
             robot_articulation=self._franka,
         )
+        self._camera1 = self._franka_playing.camera1
+        self._camera2 = self._franka_playing.camera2
+        self._camera3 = self._franka_playing.camera3
         self._world.add_physics_callback("sim_step", callback_fn=self.physics_step)
         await self._world.play_async()
         return
@@ -283,13 +299,29 @@ class HelloManip(BaseSample):
 
     def physics_step(self, step_size):
         # Gets all the tasks observations
+        self._camera1.get_current_frame()
+        self._camera2.get_current_frame()
+        self._camera3.get_current_frame()
+
         current_observations = self._world.get_observations()
         current_time = self.simulation_context.current_time
         current_joint_pos = current_observations["fancy_franka"]["joint_positions"]
         current_joint_vel = current_observations["fancy_franka"]["joint_velocities"]
         # print(step_size)
 
-        self._sim_time.create_dataset(f"{current_time}", data=current_time)
+        # self._sim_time.create_dataset(f"{current_time}", data=current_time)
+
+        if self._save_count % 100 == 0:
+
+            self._sim_time_list.append(current_time)
+            self._joint_positions.append(current_joint_pos)
+            self._joint_velocities.append(current_joint_vel)
+
+            self._camera1_img.append(self._camera1.get_rgba()[:, :, :3])
+            self._camera2_img.append(self._camera2.get_rgba()[:, :, :3])
+            self._camera3_img.append(self._camera3.get_rgba()[:, :, :3])
+
+            print("Collecting data...")
 
         if self._event == 0:
             actions = self._controller.forward(
@@ -298,8 +330,7 @@ class HelloManip(BaseSample):
                 current_joint_positions=current_joint_pos,
             )
             self._franka.apply_action(actions)
-
-        if self._event == 1:
+        elif self._event == 1:
             actions = self._controller.forward(
                 picking_position=current_observations["nut1_geom"]["position"],
                 placing_position=current_observations["nut1_geom"]["goal_position"],
@@ -307,10 +338,29 @@ class HelloManip(BaseSample):
             )
             self._franka.apply_action(actions)
 
+        self._save_count += 1
+
         if self._controller.is_done():
             self._controller.reset()
             self._event += 1
             if self._event == 2:
-                self._f.close()
-            # self._world.pause()
+                self.world_cleanup()
+        return
+    
+    def world_cleanup(self):
+
+        self._group_f.create_dataset(f"sim_time", data=self._sim_time_list, compression='gzip', compression_opts=9)
+        self._group_f.create_dataset(f"joint_positions", data=self._joint_positions, compression='gzip', compression_opts=9)
+        self._group_f.create_dataset(f"joint_velocities", data=self._joint_velocities, compression='gzip', compression_opts=9)
+
+        self._img_f.create_dataset(f"hand_camera", data=self._camera1_img, compression='gzip', compression_opts=9)
+        self._img_f.create_dataset(f"top_camera", data=self._camera2_img, compression='gzip', compression_opts=9)
+        self._img_f.create_dataset(f"front_camera", data=self._camera3_img, compression='gzip', compression_opts=9)
+
+        self._f.close()
+        print("Data saved")
+
+        self._save_count = 0
+        self._world.pause()
+
         return
