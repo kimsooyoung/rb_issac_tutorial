@@ -50,3 +50,6 @@ name = "RoadBalanceEdu.FrankaNuts"
 
 [[python.module]]
 name = "RoadBalanceEdu.FrankaNutsTable"
+
+[[python.module]]
+name = "RoadBalanceEdu.FrankaDeformable"
