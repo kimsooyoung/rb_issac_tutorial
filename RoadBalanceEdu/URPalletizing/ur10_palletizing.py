@@ -10,6 +10,7 @@ import random
 
 import numpy as np
 import omni
+import h5py
 import omni.isaac.cortex.math_util as math_util
 import omni.isaac.core.utils.numpy.rotations as rot_utils
 
@@ -126,8 +127,96 @@ class BinStacking(CortexBase):
         self._camera1_img = []
         self._camera2_img = []
         self._camera3_img = []
+        self._camera4_img = []
+        self._camera5_img = []
 
         self._save_count = 0
+
+    def _setup_camera(self):
+
+        self._camera1 = Camera(
+            prim_path="/World/Ur10Table/ur10/ee_link/ee_camera",
+            # position=np.array([0.088, 0.0, 0.926]),
+            translation=np.array([-0.15, 0.0, -0.1]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    180.0, -15.0, 0.0
+                ]), degrees=True),
+        )
+        self._camera1.set_clipping_range(0.1, 1000000.0)
+        self._camera1.set_focal_length(1.5)
+        self._camera1.initialize()
+        self._camera1.add_motion_vectors_to_frame()
+        self._camera1.set_visibility(False)
+
+        self._camera2 = Camera(
+            prim_path="/World/left_camera",
+            position=np.array([2.5, 0.0, 0.0]),
+            # translation=np.array([0.0, 0.0, -0.1]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    0.0, 0.0, 180.0
+                ]), degrees=True),
+        )
+        self._camera2.set_focal_length(1.5)
+        self._camera2.set_visibility(False)
+        self._camera2.initialize()
+
+        self._camera3 = Camera(
+            prim_path="/World/right_camera",
+            position=np.array([-2.5, 0.0, 0.0]),
+            # translation=np.array([0.0, 0.0, -0.1]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    0.0, 0.0, 0.0
+                ]), degrees=True),
+        )
+        self._camera3.set_focal_length(1.5)
+        self._camera3.set_visibility(False)
+        self._camera3.initialize()
+
+        self._camera4 = Camera(
+            prim_path="/World/front_camera",
+            position=np.array([0.0, 2.0, 0.0]),
+            # translation=np.array([0.0, 0.0, -0.1]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    0.0, 0.0, -90.0
+                ]), degrees=True),
+        )
+        self._camera4.set_focal_length(1.5)
+        self._camera4.set_visibility(False)
+        self._camera4.initialize()
+
+        self._camera5 = Camera(
+            prim_path="/World/back_camera",
+            position=np.array([0.5, -2.0, -0.2]),
+            # translation=np.array([0.0, 0.0, -0.1]),
+            frequency=30,
+            resolution=(640, 480),
+            orientation=rot_utils.euler_angles_to_quats(
+                np.array([
+                    0.0, 0.0, 90.0
+                ]), degrees=True),
+        )
+        self._camera5.set_focal_length(1.5)
+        self._camera5.set_visibility(False)
+        self._camera5.initialize()
+
+    def _setup_data_collection(self):
+        self._f = h5py.File('ur_bin_palleting.hdf5','w')
+        self._group_f = self._f.create_group("isaac_dataset")
+
+        self._save_count = 0
+        self._img_f = self._group_f.create_group("camera_images")
 
     def setup_scene(self):
         world = self.get_world()
@@ -193,82 +282,8 @@ class BinStacking(CortexBase):
         )
         self.robot.register_obstacle(obs)
 
-        self._camera1 = Camera(
-            prim_path="/World/Ur10Table/ur10/ee_link/ee_camera",
-            # position=np.array([0.088, 0.0, 0.926]),
-            translation=np.array([0.0, 0.0, -0.1]),
-            frequency=30,
-            resolution=(640, 480),
-            orientation=rot_utils.euler_angles_to_quats(
-                np.array([
-                    180.0, -30.0, 0.0
-                ]), degrees=True),
-        )
-        self._camera1.set_clipping_range(0.1, 1000000.0)
-        self._camera1.set_focal_length(1.5)
-        self._camera1.initialize()
-        self._camera1.add_motion_vectors_to_frame()
-        self._camera1.set_visibility(True)
-
-        self._camera2 = Camera(
-            prim_path="/World/left_camera",
-            position=np.array([2.5, 0.0, 0.0]),
-            # translation=np.array([0.0, 0.0, -0.1]),
-            frequency=30,
-            resolution=(640, 480),
-            orientation=rot_utils.euler_angles_to_quats(
-                np.array([
-                    0.0, 0.0, 180.0
-                ]), degrees=True),
-        )
-        self._camera2.set_focal_length(1.5)
-        self._camera2.set_visibility(False)
-        self._camera2.initialize()
-
-        self._camera3 = Camera(
-            prim_path="/World/right_camera",
-            position=np.array([-2.5, 0.0, 0.0]),
-            # translation=np.array([0.0, 0.0, -0.1]),
-            frequency=30,
-            resolution=(640, 480),
-            orientation=rot_utils.euler_angles_to_quats(
-                np.array([
-                    0.0, 0.0, 0.0
-                ]), degrees=True),
-        )
-        self._camera3.set_focal_length(1.5)
-        self._camera3.set_visibility(False)
-        self._camera3.initialize()
-
-        self._camera4 = Camera(
-            prim_path="/World/front_camera",
-            position=np.array([0.0, 2.0, 0.0]),
-            # translation=np.array([0.0, 0.0, -0.1]),
-            frequency=30,
-            resolution=(640, 480),
-            orientation=rot_utils.euler_angles_to_quats(
-                np.array([
-                    0.0, 0.0, -90.0
-                ]), degrees=True),
-        )
-        self._camera4.set_focal_length(1.5)
-        self._camera4.set_visibility(False)
-        self._camera4.initialize()
-
-        self._camera5 = Camera(
-            prim_path="/World/back_camera",
-            position=np.array([0.5, -2.0, -0.2]),
-            # translation=np.array([0.0, 0.0, -0.1]),
-            frequency=30,
-            resolution=(640, 480),
-            orientation=rot_utils.euler_angles_to_quats(
-                np.array([
-                    0.0, 0.0, 90.0
-                ]), degrees=True),
-        )
-        self._camera5.set_focal_length(1.5)
-        self._camera5.set_visibility(False)
-        self._camera5.initialize()
+        self._setup_camera()
+        self._setup_data_collection()
 
     async def setup_post_load(self):
         world = self.get_world()
@@ -285,6 +300,7 @@ class BinStacking(CortexBase):
         world.add_task(self.task)
         self.decider_network = behavior.make_decider_network(self.robot, self._on_monitor_update)
         world.add_decider_network(self.decider_network)
+
         return
 
     def _on_monitor_update(self, diagnostics):
@@ -302,6 +318,39 @@ class BinStacking(CortexBase):
 
     def _on_physics_step(self, step_size):
         world = self.get_world()
+
+        self._camera1.get_current_frame()
+        self._camera2.get_current_frame()
+        self._camera3.get_current_frame()
+        self._camera4.get_current_frame()
+        self._camera5.get_current_frame()
+
+        current_time = self.simulation_context.current_time
+        current_joint_state = self.robot.get_joints_state()
+        current_joint_positions = current_joint_state.positions
+        current_joint_velocities = current_joint_state.velocities
+
+        print(self._save_count)
+
+        if self._save_count % 50 == 0:
+
+            self._sim_time_list.append(current_time)
+            self._joint_positions.append(current_joint_positions)
+            self._joint_velocities.append(current_joint_velocities)
+
+            self._camera1_img.append(self._camera1.get_rgba()[:, :, :3])
+            self._camera2_img.append(self._camera2.get_rgba()[:, :, :3])
+            self._camera3_img.append(self._camera3.get_rgba()[:, :, :3])
+            self._camera4_img.append(self._camera4.get_rgba()[:, :, :3])
+            self._camera5_img.append(self._camera5.get_rgba()[:, :, :3])
+
+            print("Collecting data...")
+
+        if self._save_count > 3000:
+            self.save_data()
+
+        self._save_count += 1
+        
         world.step(False, False)
         return
 
@@ -320,4 +369,24 @@ class BinStacking(CortexBase):
         return
 
     def world_cleanup(self):
+        return
+
+    def save_data(self):
+
+        self._group_f.create_dataset(f"sim_time", data=self._sim_time_list, compression='gzip', compression_opts=9)
+        self._group_f.create_dataset(f"joint_positions", data=self._joint_positions, compression='gzip', compression_opts=9)
+        self._group_f.create_dataset(f"joint_velocities", data=self._joint_velocities, compression='gzip', compression_opts=9)
+
+        self._img_f.create_dataset(f"ee_camera", data=self._camera1_img, compression='gzip', compression_opts=9)
+        self._img_f.create_dataset(f"left_camera", data=self._camera2_img, compression='gzip', compression_opts=9)
+        self._img_f.create_dataset(f"right_camera", data=self._camera3_img, compression='gzip', compression_opts=9)
+        self._img_f.create_dataset(f"front_camera", data=self._camera4_img, compression='gzip', compression_opts=9)
+        self._img_f.create_dataset(f"back_camera", data=self._camera5_img, compression='gzip', compression_opts=9)
+
+        self._f.close()
+
+        print("Data saved")
+        self._save_count = 0
+        self._world.pause()
+
         return

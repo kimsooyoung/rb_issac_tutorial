@@ -220,10 +220,9 @@ class FrankaNutAndBolt(BaseSample):
 
         # HDF Data Collection Setup
         self._save_count = 0
-        self._f = h5py.File('/home/kimsooyoung/Documents/franka_nuts_table.hdf5','w')
+        self._f = h5py.File('franka_bolts_nuts_table.hdf5','w')
         self._group_f = self._f.create_group("isaac_dataset")
         self._img_f = self._group_f.create_group("camera_images")
-
 
         return
 

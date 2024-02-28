@@ -247,7 +247,7 @@ class HelloManip(BaseSample):
         self.simulation_context = SimulationContext()
         self._setup_simulation()
 
-        self._f = h5py.File('/home/kimsooyoung/Documents/franka_nuts_pick_and_place.hdf5','w')
+        self._f = h5py.File('franka_nuts_basic.hdf5','w')
         self._group_f = self._f.create_group("isaac_dataset")
 
         self._save_count = 0
