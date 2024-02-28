@@ -5,7 +5,7 @@ import pylab as plt
 file_name = "/home/kimsooyoung/Documents/cam_test.hdf5"
 
 with h5py.File(file_name, 'r') as f:
-    # 데이터셋 로드
+
     # data = f['my_dataset'][:]
     print(f.keys())
     print(f['isaac_save_data'].keys())
