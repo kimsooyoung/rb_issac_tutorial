@@ -40,5 +40,10 @@ name = "RoadBalanceEdu.HelloMultiTask"
 name = "RoadBalanceEdu.HelloCamera"
 
 [[python.module]]
+name = "RoadBalanceEdu.HelloLight"
+
+[[python.module]]
 name = "RoadBalanceEdu.FrankaNuts"
 
+[[python.module]]
+name = "RoadBalanceEdu.FrankaNutsTable"
