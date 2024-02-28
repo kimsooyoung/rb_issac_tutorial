@@ -57,3 +57,5 @@ name = "RoadBalanceEdu.FrankaDeformable"
 [[python.module]]
 name = "RoadBalanceEdu.URBinFilling"
 
+[[python.module]]
+name = "RoadBalanceEdu.URPalletizing"
