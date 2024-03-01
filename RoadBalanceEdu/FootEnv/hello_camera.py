@@ -11,12 +11,16 @@ from omni.isaac.examples.base_sample import BaseSample
 import numpy as np
 
 # Note: checkout the required tutorials at https://docs.omniverse.nvidia.com/app_isaacsim/app_isaacsim/overview.html
+from omni.isaac.core.utils.stage import add_reference_to_stage, get_stage_units
+from omni.isaac.core.utils.nucleus import get_assets_root_path, get_url_root
 from omni.isaac.core.objects import DynamicCuboid
 from omni.isaac.sensor import Camera
 from omni.isaac.core import World
 
 import omni.isaac.core.utils.numpy.rotations as rot_utils
 from omni.isaac.core import SimulationContext
+from omni.physx.scripts import deformableUtils, physicsUtils  
+from pxr import UsdGeom, Gf, UsdPhysics
 
 from PIL import Image
 import carb
@@ -38,6 +42,7 @@ class HelloCamera(BaseSample):
     def setup_scene(self):
 
         world = self.get_world()
+        stage = omni.usd.get_context().get_stage()
         world.scene.add_default_ground_plane()
         
         self._camera = Camera(
@@ -50,19 +55,27 @@ class HelloCamera(BaseSample):
         self._camera.initialize()
         self._camera.add_motion_vectors_to_frame()
 
-        fancy_cube = world.scene.add(
-            DynamicCuboid(
-                prim_path="/World/random_cube", # The prim path of the cube in the USD stage
-                name="fancy_cube", # The unique name used to retrieve the object from the scene later on
-                position=np.array([0, 0, 1.0]), # Using the current stage units which is in meters by default.
-                scale=np.array([0.5015, 0.5015, 0.5015]), # most arguments accept mainly numpy arrays.
-                color=np.array([0, 0, 1.0]), # RGB channels, going from 0-1
-            ))
-        
         self.simulation_context = SimulationContext()
 
-        self._f = h5py.File('hello_cam.hdf5','w')
-        self._group = self._f.create_group("isaac_save_data")
+        # self._f = h5py.File('hello_cam.hdf5','w')
+        # self._group = self._f.create_group("isaac_save_data")
+
+        carb.log_info("Check /persistent/isaac/asset_root/default setting")
+        default_asset_root = carb.settings.get_settings().get("/persistent/isaac/asset_root/default")
+        server_root = get_url_root(default_asset_root)
+        print(f"server_root1: {server_root}")
+
+        foot_usd_path = server_root + "/Projects/DInsight/Female_Foot.usd"
+        # TODO : check foot availability
+        add_reference_to_stage(
+            usd_path=foot_usd_path, 
+            prim_path=f"/World/foot",
+        )
+
+        foot_mesh = UsdGeom.Mesh.Get(stage, "/World/foot")
+        physicsUtils.set_or_add_translate_op(foot_mesh, translate=Gf.Vec3f(0.0, 0.0, 0.5))
+        physicsUtils.set_or_add_orient_op(foot_mesh, orient=Gf.Quatf(-0.5, -0.5, -0.5, -0.5))
+        physicsUtils.set_or_add_scale_op(foot_mesh, scale=Gf.Vec3f(0.001, 0.001, 0.001))
 
         return
 
@@ -90,7 +103,6 @@ class HelloCamera(BaseSample):
 
         self._save_count += 1
 
-
         if self._save_count == 500:
             self.world_cleanup()
 
@@ -103,10 +115,10 @@ class HelloCamera(BaseSample):
     def world_cleanup(self):
         cv2.destroyAllWindows()
 
-        self._group.create_dataset(f"sim_time", data=self._time_list, compression='gzip', compression_opts=9)
-        self._group.create_dataset(f"image", data=self._img_list, compression='gzip', compression_opts=9)
+        # self._group.create_dataset(f"sim_time", data=self._time_list, compression='gzip', compression_opts=9)
+        # self._group.create_dataset(f"image", data=self._img_list, compression='gzip', compression_opts=9)
 
-        self._f.close()
+        # self._f.close()
         print("Data saved")
 
         self._save_count = 0
