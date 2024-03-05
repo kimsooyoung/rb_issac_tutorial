@@ -21,7 +21,7 @@ import omni.graph.core as og
 import omni.isaac.core.utils.numpy.rotations as rot_utils
 from omni.isaac.core import SimulationContext
 from omni.physx.scripts import deformableUtils, physicsUtils  
-from pxr import UsdGeom, Gf, UsdPhysics
+from pxr import UsdGeom, Gf, UsdPhysics, Sdf, Gf, Tf, UsdLux
 
 from PIL import Image
 import carb
@@ -59,9 +59,7 @@ class FootEnv(BaseSample):
                         ("RenderProduct2", "omni.isaac.core_nodes.IsaacCreateRenderProduct"),
                         ("RGBPublish", "omni.isaac.ros2_bridge.ROS2CameraHelper"),
                         ("DepthPublish", "omni.isaac.ros2_bridge.ROS2CameraHelper"),
-
-                        # TODO : Camera Info 
-                        # ("CameraInfoPublish", "omni.isaac.ros2_bridge.ROS2CameraHelper"),
+                        ("CameraInfoPublish", "omni.isaac.ros2_bridge.ROS2CameraHelper"),
                     ],
                     og.Controller.Keys.SET_VALUES: [
                         ("RenderProduct1.inputs:cameraPrim", camprim1),
@@ -75,19 +73,21 @@ class FootEnv(BaseSample):
                         ("DepthPublish.inputs:type", "depth"),
                         ("DepthPublish.inputs:resetSimulationTimeOnStop", True),
                         
-                        # ("CameraInfoPublish.inputs:topicName", "camera_info"),
-                        # ("CameraInfoPublish.inputs:type", "camera_info"),
-                        # ("CameraInfoPublish.inputs:resetSimulationTimeOnStop", True),
+                        ("CameraInfoPublish.inputs:topicName", "depth_camera_info"),
+                        ("CameraInfoPublish.inputs:type", "camera_info"),
+                        ("CameraInfoPublish.inputs:resetSimulationTimeOnStop", True),
                     ],
                     og.Controller.Keys.CONNECT: [
                         ("OnPlaybackTick.outputs:tick", "RenderProduct1.inputs:execIn"),
                         ("OnPlaybackTick.outputs:tick", "RenderProduct2.inputs:execIn"),
 
-                        ("RenderProduct1.outputs:execOut", "RGBPublish.inputs:execIn"),
-                        ("RenderProduct2.outputs:execOut", "DepthPublish.inputs:execIn"),                    
+                        ("RenderProduct1.outputs:execOut", "DepthPublish.inputs:execIn"),
+                        ("RenderProduct1.outputs:execOut", "CameraInfoPublish.inputs:execIn"),
+                        ("RenderProduct2.outputs:execOut", "RGBPublish.inputs:execIn"),                    
                     
-                        ("RenderProduct1.outputs:renderProductPath", "RGBPublish.inputs:renderProductPath"),
-                        ("RenderProduct2.outputs:renderProductPath", "DepthPublish.inputs:renderProductPath"),
+                        ("RenderProduct1.outputs:renderProductPath", "DepthPublish.inputs:renderProductPath"),
+                        ("RenderProduct1.outputs:renderProductPath", "CameraInfoPublish.inputs:renderProductPath"),
+                        ("RenderProduct2.outputs:renderProductPath", "RGBPublish.inputs:renderProductPath"),
                     ],
                 },
             )
@@ -106,7 +106,7 @@ class FootEnv(BaseSample):
         )
 
         self._gemini_mesh = UsdGeom.Mesh.Get(self._stage, "/World/Orbbec_Gemini2")
-        physicsUtils.set_or_add_translate_op(self._gemini_mesh, translate=Gf.Vec3f(0.0, 0.4, 0.4))
+        physicsUtils.set_or_add_translate_op(self._gemini_mesh, translate=Gf.Vec3f(0.05, 0.5, 0.5))
         # x: -3.1415927, y: 0, z: -1.5707963 
         rot = rot_utils.euler_angles_to_quats(np.array([
                 90, 0, 0
@@ -119,7 +119,7 @@ class FootEnv(BaseSample):
         
         # TODO: get image handler for saving images
 
-    def add_foot(self):
+    def add_female_foot(self):
 
         foot_usd_path = self._server_root + "/Projects/DInsight/Female_Foot.usd"
         
@@ -130,9 +130,62 @@ class FootEnv(BaseSample):
         )
 
         foot_mesh = UsdGeom.Mesh.Get(self._stage, "/World/foot")
-        physicsUtils.set_or_add_translate_op(foot_mesh, translate=Gf.Vec3f(0.0, 0.0, 0.5))
+        physicsUtils.set_or_add_translate_op(foot_mesh, translate=Gf.Vec3f(0.0, 0.0, 0.6))
         physicsUtils.set_or_add_orient_op(foot_mesh, orient=Gf.Quatf(-0.5, -0.5, -0.5, -0.5))
         physicsUtils.set_or_add_scale_op(foot_mesh, scale=Gf.Vec3f(0.001, 0.001, 0.001))
+
+    def add_male_foot(self):
+
+        foot_usd_path = self._server_root + "/Projects/DInsight/foot1.usd"
+        
+        # TODO : check foot availability
+        add_reference_to_stage(
+            usd_path=foot_usd_path, 
+            prim_path=f"/World/foot",
+        )
+
+        foot_mesh = UsdGeom.Mesh.Get(self._stage, "/World/foot")
+        physicsUtils.set_or_add_translate_op(foot_mesh, translate=Gf.Vec3f(0.0, 0.0, 0.45))
+        physicsUtils.set_or_add_orient_op(foot_mesh, orient=Gf.Quatf(-0.5, -0.5, -0.5, -0.5))
+        physicsUtils.set_or_add_scale_op(foot_mesh, scale=Gf.Vec3f(0.25, 0.25, 0.25))
+
+    def add_soft_foot(self):
+
+        foot_usd_path = self._server_root + "/Projects/DInsight/foot2.usd"
+        
+        # TODO : check foot availability
+        add_reference_to_stage(
+            usd_path=foot_usd_path, 
+            prim_path=f"/World/foot",
+        )
+
+        foot_mesh = UsdGeom.Mesh.Get(self._stage, "/World/foot")
+        physicsUtils.set_or_add_translate_op(foot_mesh, translate=Gf.Vec3f(0.2, 0.08, 0.33))
+        physicsUtils.set_or_add_orient_op(foot_mesh, orient=Gf.Quatf(0.6918005, 0.3113917, 0, 0.6514961))
+        
+        physicsUtils.set_or_add_scale_op(foot_mesh, scale=Gf.Vec3f(1.0, 1.0, 1.0))
+
+    def add_leg_foot(self):
+
+        foot_usd_path = self._server_root + "/Projects/DInsight/foot3.usd"
+        
+        # TODO : check foot availability
+        add_reference_to_stage(
+            usd_path=foot_usd_path, 
+            prim_path=f"/World/foot",
+        )
+
+        foot_mesh = UsdGeom.Mesh.Get(self._stage, "/World/foot")
+        physicsUtils.set_or_add_translate_op(foot_mesh, translate=Gf.Vec3f(0.0, 0.08, 0.30))
+        # physicsUtils.set_or_add_orient_op(foot_mesh, orient=Gf.Quatf(-0.5207212, -0.3471475, 0, -0.7799603))
+        physicsUtils.set_or_add_orient_op(foot_mesh, orient=Gf.Quatf(0.6513039, 0.4342026, 0.3618355, 0.5063066 ))
+
+        physicsUtils.set_or_add_scale_op(foot_mesh, scale=Gf.Vec3f(0.005, 0.005, 0.005))
+
+    def add_light(self):
+        sphereLight = UsdLux.SphereLight.Define(self._stage, Sdf.Path("/World/bottomSphereLight"))
+        sphereLight.CreateIntensityAttr(3000)
+        sphereLight.CreateRadiusAttr(0.05)
 
     def setup_scene(self):
 
@@ -141,8 +194,13 @@ class FootEnv(BaseSample):
         self._world.scene.add_default_ground_plane()
         self.simulation_context = SimulationContext()
         
+        self.add_light()
         self.camera_setup()
-        self.add_foot()
+        # self.add_female_foot()
+        # self.add_male_foot()
+        # self.add_soft_foot()
+        self.add_leg_foot()
+        
         self.og_setup()
 
         # self._f = h5py.File('hello_cam.hdf5','w')
@@ -160,15 +218,15 @@ class FootEnv(BaseSample):
 
         # self._camera.get_current_frame()
 
-        if self._save_count % 50 == 0:
+        if self._save_count % 11 == 0:
 
             current_time = self.simulation_context.current_time
 
             omega = 2 * np.pi * self._rotate_count / 100
-            x_offset, y_offset = 0.4 * np.cos(omega), 0.4 * np.sin(omega)
+            x_offset, y_offset = 0.5 * np.cos(omega), 0.5 * np.sin(omega)
 
             physicsUtils.set_or_add_translate_op(self._gemini_mesh, translate=Gf.Vec3f(
-                    0.0, x_offset, 0.4 + y_offset))
+                    0.05, x_offset, 0.5 + y_offset))
 
             rot = rot_utils.euler_angles_to_quats(
                     np.array([
@@ -188,7 +246,7 @@ class FootEnv(BaseSample):
 
         self._save_count += 1
 
-        if self._save_count == 3000:
+        if self._save_count > 1100:
             self.world_cleanup()
 
     # async def setup_pre_reset(self):
