@@ -69,17 +69,7 @@ class FrankaPlaying(BaseTask):
 
         return
 
-    # Here we setup all the assets that we care about in this task.
-    def set_up_scene(self, scene):
-        super().set_up_scene(scene)
-        scene.add_default_ground_plane()
-
-        self._franka = scene.add(
-            Franka(
-                prim_path="/World/Fancy_Franka",
-                name="fancy_franka"
-            )
-        )
+    def setup_cameras(self):
 
         # Exception: You can not define translation and position at the same time
         self._camera1 = Camera(
@@ -126,6 +116,9 @@ class FrankaPlaying(BaseTask):
         self._camera3.initialize()
         self._camera3.set_visibility(False)
 
+        return
+
+    def setup_bins(self, scene):
         for bins in range(self._num_bins):
             add_reference_to_stage(
                 usd_path=self._bin_asset_path, 
@@ -142,6 +135,10 @@ class FrankaPlaying(BaseTask):
             )
             self._bins.append(_bin)
 
+        return
+
+    def setup_nuts(self, scene):
+
         for nut in range(self._num_nuts):
             add_reference_to_stage(
                 usd_path=self._nut_asset_path, 
@@ -157,6 +154,56 @@ class FrankaPlaying(BaseTask):
                 )
             )
             self._nuts.append(nut)
+
+        return
+
+    # Here we setup all the assets that we care about in this task.
+    def set_up_scene(self, scene):
+        super().set_up_scene(scene)
+        scene.add_default_ground_plane()
+
+        self._franka = scene.add(
+            Franka(
+                prim_path="/World/Fancy_Franka",
+                name="fancy_franka"
+            )
+        )
+
+        self.setup_cameras()
+        self.setup_bins(scene)
+        self.setup_nuts(scene)
+
+        # for bins in range(self._num_bins):
+        #     add_reference_to_stage(
+        #         usd_path=self._bin_asset_path, 
+        #         prim_path=f"/World/bin{bins}",
+        #     )
+        #     _bin = scene.add(
+        #         RigidPrim(
+        #             prim_path=f"/World/bin{bins}",
+        #             name=f"bin{bins}",
+        #             position=self._bin_position[bins] / get_stage_units(),
+        #             orientation=euler_angles_to_quat(np.array([np.pi, 0., 0.])),
+        #             mass=0.1, # kg
+        #         )
+        #     )
+        #     self._bins.append(_bin)
+
+        # for nut in range(self._num_nuts):
+        #     add_reference_to_stage(
+        #         usd_path=self._nut_asset_path, 
+        #         prim_path=f"/World/nut{nut}",
+        #     )
+        #     nut = scene.add(
+        #         GeometryPrim(
+        #             prim_path=f"/World/nut{nut}",
+        #             name=f"nut{nut}_geom",
+        #             position=self._nuts_position[nut] / get_stage_units(),
+        #             collision=True,
+        #             # mass=0.1, # kg
+        #         )
+        #     )
+        #     self._nuts.append(nut)
 
         return
 
@@ -217,7 +264,8 @@ class FrankaPlaying(BaseTask):
     def camera3(self):
         return self._camera3
 
-class HelloManip(BaseSample):
+
+class FrankaNutsBasic(BaseSample):
     def __init__(self) -> None:
         super().__init__()
 
@@ -242,16 +290,23 @@ class HelloManip(BaseSample):
 
         return
 
-    def setup_scene(self):
-        world = self.get_world()
-        self.simulation_context = SimulationContext()
-        self._setup_simulation()
+    def setup_dataset(self):
 
         self._f = h5py.File('franka_nuts_basic.hdf5','w')
         self._group_f = self._f.create_group("isaac_dataset")
 
         self._save_count = 0
         self._img_f = self._group_f.create_group("camera_images")
+
+        return
+
+
+    def setup_scene(self):
+        world = self.get_world()
+        self.simulation_context = SimulationContext()
+        self._setup_simulation()
+
+        self.setup_dataset()
 
         # We add the task to the world here
         self._franka_playing = FrankaPlaying(name="my_first_task")
@@ -298,6 +353,7 @@ class HelloManip(BaseSample):
         return
 
     def physics_step(self, step_size):
+
         # Gets all the tasks observations
         self._camera1.get_current_frame()
         self._camera2.get_current_frame()
@@ -309,7 +365,6 @@ class HelloManip(BaseSample):
         current_joint_vel = current_observations["fancy_franka"]["joint_velocities"]
         # print(step_size)
 
-        # self._sim_time.create_dataset(f"{current_time}", data=current_time)
 
         if self._save_count % 100 == 0:
 
