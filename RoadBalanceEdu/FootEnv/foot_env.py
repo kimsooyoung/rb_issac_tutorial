@@ -44,7 +44,7 @@ class FootEnv(BaseSample):
         self._img_list = []
 
         return
-    
+
     def og_setup(self):
         camprim1 = "/World/Orbbec_Gemini2/Orbbec_Gemini2/camera_ir_left/camera_left/Stream_depth"
         camprim2 = "/World/Orbbec_Gemini2/Orbbec_Gemini2/camera_rgb/camera_rgb/Stream_rgb"
@@ -94,7 +94,6 @@ class FootEnv(BaseSample):
         except Exception as e:
             print(e)
 
-
     def camera_setup(self):
         
         gemini_usd_path = self._server_root + "/NVIDIA/Assets/Isaac/2023.1.1/Isaac/Sensors/Orbbec/Gemini 2/orbbec_gemini2_V1.0.usd"
@@ -117,13 +116,10 @@ class FootEnv(BaseSample):
         ldm_light_intensity = ldm_light.GetAttribute("intensity")
         ldm_light_intensity.Set(0)
         
-        # TODO: get image handler for saving images
-
     def add_female_foot(self):
 
         foot_usd_path = self._server_root + "/Projects/DInsight/Female_Foot.usd"
         
-        # TODO : check foot availability
         add_reference_to_stage(
             usd_path=foot_usd_path, 
             prim_path=f"/World/foot",
@@ -138,7 +134,6 @@ class FootEnv(BaseSample):
 
         foot_usd_path = self._server_root + "/Projects/DInsight/foot1.usd"
         
-        # TODO : check foot availability
         add_reference_to_stage(
             usd_path=foot_usd_path, 
             prim_path=f"/World/foot",
@@ -153,7 +148,6 @@ class FootEnv(BaseSample):
 
         foot_usd_path = self._server_root + "/Projects/DInsight/foot2.usd"
         
-        # TODO : check foot availability
         add_reference_to_stage(
             usd_path=foot_usd_path, 
             prim_path=f"/World/foot",
@@ -169,7 +163,6 @@ class FootEnv(BaseSample):
 
         foot_usd_path = self._server_root + "/Projects/DInsight/foot3.usd"
         
-        # TODO : check foot availability
         add_reference_to_stage(
             usd_path=foot_usd_path, 
             prim_path=f"/World/foot",
@@ -261,7 +254,7 @@ class FootEnv(BaseSample):
         # self._group.create_dataset(f"image", data=self._img_list, compression='gzip', compression_opts=9)
 
         # self._f.close()
-        print("Data saved")
+        # print("Data saved")
 
         self._save_count = 0
         self._world.pause()
