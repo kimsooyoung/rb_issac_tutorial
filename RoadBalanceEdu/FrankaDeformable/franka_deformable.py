@@ -37,28 +37,28 @@ class FrankaPlaying(BaseTask):
         self._task_achieved = False
         return
 
-    # Here we setup all the assets that we care about in this task.
-    def set_up_scene(self, scene):
-        super().set_up_scene(scene)
-        scene.add_default_ground_plane()
-
-        stage = omni.usd.get_context().get_stage()
-
+    def create_cube(self, stage, prim_path):
         # Create cube
         result, path = omni.kit.commands.execute("CreateMeshPrimCommand", prim_type="Cube")
-        omni.kit.commands.execute("MovePrim", path_from=path, path_to="/World/cube")
+        
+        omni.kit.commands.execute("MovePrim", path_from=path, path_to=prim_path)
         omni.usd.get_context().get_selection().set_selected_prim_paths([], False)
-
-        cube_mesh = UsdGeom.Mesh.Get(stage, "/World/cube")
+        
+        cube_mesh = UsdGeom.Mesh.Get(stage, prim_path)
+        
         physicsUtils.set_or_add_translate_op(cube_mesh, translate=Gf.Vec3f(0.3, 0.3, 0.3))
         # physicsUtils.set_or_add_orient_op(cube_mesh, orient=Gf.Quatf(0.707, 0.707, 0, 0))
         physicsUtils.set_or_add_scale_op(cube_mesh, scale=Gf.Vec3f(0.04, 0.04, 0.04))
         cube_mesh.CreateDisplayColorAttr([(1.0, 0.0, 0.0)])
 
+        return
+
+    def setup_deformable_cube(self, stage, prim_path):
+
         # Apply PhysxDeformableBodyAPI and PhysxCollisionAPI to skin mesh and set parameter to default values
         deformableUtils.add_physx_deformable_body(
             stage,
-            "/World/cube",
+            prim_path,
             collision_simplification=True,
             simulation_hexahedral_resolution=4,
             self_collision=False,
@@ -74,9 +74,20 @@ class FrankaPlaying(BaseTask):
             damping_scale=0.0,
             dynamic_friction=0.5,
         )
-        self._cube_prim = stage.GetPrimAtPath("/World/cube")
-        physicsUtils.add_physics_material_to_prim(stage, self._cube_prim, "/World/cube")       
-        
+        self._cube_prim = stage.GetPrimAtPath(prim_path)
+        physicsUtils.add_physics_material_to_prim(stage, self._cube_prim, prim_path)
+        return
+
+    # Here we setup all the assets that we care about in this task.
+    def set_up_scene(self, scene):
+        super().set_up_scene(scene)
+        scene.add_default_ground_plane()
+
+        stage = omni.usd.get_context().get_stage()
+
+        self.create_cube(stage, "/World/cube")
+        self.setup_deformable_cube(stage, "/World/cube")
+
         self._franka = scene.add(Franka(prim_path="/World/Fancy_Franka",
                                         name="fancy_franka"))
 
@@ -131,7 +142,7 @@ class FrankaDeformable(BaseSample):
         self._setup_simulation()
 
         # We add the task to the world here
-        world.add_task(FrankaPlaying(name="my_first_task"))
+        world.add_task(FrankaPlaying(name="deformable_franka_task"))
         return
 
     async def setup_post_load(self):
