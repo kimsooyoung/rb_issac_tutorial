@@ -26,6 +26,7 @@ from omni.isaac.core import SimulationContext
 
 from pxr import PhysxSchema
 
+from datetime import datetime
 import numpy as np
 import h5py
 
@@ -173,38 +174,6 @@ class FrankaPlaying(BaseTask):
         self.setup_bins(scene)
         self.setup_nuts(scene)
 
-        # for bins in range(self._num_bins):
-        #     add_reference_to_stage(
-        #         usd_path=self._bin_asset_path, 
-        #         prim_path=f"/World/bin{bins}",
-        #     )
-        #     _bin = scene.add(
-        #         RigidPrim(
-        #             prim_path=f"/World/bin{bins}",
-        #             name=f"bin{bins}",
-        #             position=self._bin_position[bins] / get_stage_units(),
-        #             orientation=euler_angles_to_quat(np.array([np.pi, 0., 0.])),
-        #             mass=0.1, # kg
-        #         )
-        #     )
-        #     self._bins.append(_bin)
-
-        # for nut in range(self._num_nuts):
-        #     add_reference_to_stage(
-        #         usd_path=self._nut_asset_path, 
-        #         prim_path=f"/World/nut{nut}",
-        #     )
-        #     nut = scene.add(
-        #         GeometryPrim(
-        #             prim_path=f"/World/nut{nut}",
-        #             name=f"nut{nut}_geom",
-        #             position=self._nuts_position[nut] / get_stage_units(),
-        #             collision=True,
-        #             # mass=0.1, # kg
-        #         )
-        #     )
-        #     self._nuts.append(nut)
-
         return
 
     # Information exposed to solve the task is returned from the task through get_observations
@@ -280,56 +249,7 @@ class FrankaNutsBasic(BaseSample):
         self._event = 0
         self._step_size = 0.01
 
-        self._sim_time_list = []
-        self._joint_positions = []
-        self._joint_velocities = []
-
-        self._camera1_img = []
-        self._camera2_img = []
-        self._camera3_img = []
-
         return
-
-    def setup_dataset(self):
-
-        self._f = h5py.File('franka_nuts_basic.hdf5','w')
-        self._group_f = self._f.create_group("isaac_dataset")
-
-        self._save_count = 0
-        self._img_f = self._group_f.create_group("camera_images")
-
-        return
-
-
-    def setup_scene(self):
-        world = self.get_world()
-        self.simulation_context = SimulationContext()
-        self._setup_simulation()
-
-        self.setup_dataset()
-
-        # We add the task to the world here
-        self._franka_playing = FrankaPlaying(name="my_first_task")
-        world.add_task(self._franka_playing)
-        return
-
-    async def setup_post_load(self):
-        self._world = self.get_world()
-        # The world already called the setup_scene from the task (with first reset of the world)
-        # so we can retrieve the task objects
-        self._franka = self._world.scene.get_object("fancy_franka")
-        self._controller = PickPlaceController(
-            name="pick_place_controller",
-            gripper=self._franka.gripper,
-            robot_articulation=self._franka,
-        )
-        self._camera1 = self._franka_playing.camera1
-        self._camera2 = self._franka_playing.camera2
-        self._camera3 = self._franka_playing.camera3
-        self._world.add_physics_callback("sim_step", callback_fn=self.physics_step)
-        await self._world.play_async()
-        return
-
 
     def _setup_simulation(self):
         self._scene = PhysicsContext()
@@ -346,6 +266,78 @@ class FrankaNutsBasic(BaseSample):
         physxSceneAPI = PhysxSchema.PhysxSceneAPI.Apply(get_prim_at_path("/physicsScene"))
         physxSceneAPI.CreateGpuCollisionStackSizeAttr().Set(76000000)  # or whatever min is needed
 
+    def setup_dataset(self):
+
+        self._f = None
+        self._sim_time_list = []
+        self._joint_positions = []
+        self._joint_velocities = []
+
+        self._camera1_img = []
+        self._camera2_img = []
+        self._camera3_img = []
+
+        now = datetime.now() # current date and time
+        date_time_str = now.strftime("%m_%d_%Y_%H_%M_%S")
+
+        file_name = f'franka_nuts_basis_{date_time_str}.hdf5'
+        print(file_name)
+
+        self._f = h5py.File(file_name,'w')
+        self._group_f = self._f.create_group("isaac_dataset")
+
+        self._save_count = 0
+        self._img_f = self._group_f.create_group("camera_images")
+
+        return
+
+    def setup_scene(self):
+
+        print("setup_scene")
+        
+        world = self.get_world()
+        self.simulation_context = SimulationContext()
+        self._setup_simulation()
+
+        self.setup_dataset()
+
+        # We add the task to the world here
+        self._franka_playing = FrankaPlaying(name="my_first_task")
+        world.add_task(self._franka_playing)
+        return
+
+    async def setup_post_load(self):
+        print("setup_post_load")
+        self._world = self.get_world()
+
+        # The world already called the setup_scene from the task (with first reset of the world)
+        # so we can retrieve the task objects
+        self._franka = self._world.scene.get_object("fancy_franka")
+        self._controller = PickPlaceController(
+            name="pick_place_controller",
+            gripper=self._franka.gripper,
+            robot_articulation=self._franka,
+        )
+        self._camera1 = self._franka_playing.camera1
+        self._camera2 = self._franka_playing.camera2
+        self._camera3 = self._franka_playing.camera3
+        self._world.add_physics_callback("sim_step", callback_fn=self.physics_step)
+        await self._world.play_async()
+        return
+
+    async def setup_pre_reset(self):
+
+        if self._f is not None:
+            self._f.close()
+            self._f = None
+        elif self._f is None:
+            print("Create new file for new data collection...")
+            self.setup_dataset()
+
+        self._save_count = 0
+        self._event = 0
+
+        return
 
     async def setup_post_reset(self):
         self._controller.reset()
@@ -365,18 +357,18 @@ class FrankaNutsBasic(BaseSample):
         current_joint_vel = current_observations["fancy_franka"]["joint_velocities"]
         # print(step_size)
 
-
         if self._save_count % 100 == 0:
 
-            self._sim_time_list.append(current_time)
-            self._joint_positions.append(current_joint_pos)
-            self._joint_velocities.append(current_joint_vel)
+            if current_joint_pos is not None and current_joint_vel is not None:
+                self._sim_time_list.append(current_time)
+                self._joint_positions.append(current_joint_pos)
+                self._joint_velocities.append(current_joint_vel)
 
-            self._camera1_img.append(self._camera1.get_rgba()[:, :, :3])
-            self._camera2_img.append(self._camera2.get_rgba()[:, :, :3])
-            self._camera3_img.append(self._camera3.get_rgba()[:, :, :3])
+                self._camera1_img.append(self._camera1.get_rgba()[:, :, :3])
+                self._camera2_img.append(self._camera2.get_rgba()[:, :, :3])
+                self._camera3_img.append(self._camera3.get_rgba()[:, :, :3])
 
-            print("Collecting data...")
+                print("Collecting data...")
 
         if self._event == 0:
             actions = self._controller.forward(
@@ -400,22 +392,32 @@ class FrankaNutsBasic(BaseSample):
             self._event += 1
             if self._event == 2:
                 self.world_cleanup()
+
         return
     
     def world_cleanup(self):
 
-        self._group_f.create_dataset(f"sim_time", data=self._sim_time_list, compression='gzip', compression_opts=9)
-        self._group_f.create_dataset(f"joint_positions", data=self._joint_positions, compression='gzip', compression_opts=9)
-        self._group_f.create_dataset(f"joint_velocities", data=self._joint_velocities, compression='gzip', compression_opts=9)
+        try:
+            if self._f is not None:
 
-        self._img_f.create_dataset(f"hand_camera", data=self._camera1_img, compression='gzip', compression_opts=9)
-        self._img_f.create_dataset(f"top_camera", data=self._camera2_img, compression='gzip', compression_opts=9)
-        self._img_f.create_dataset(f"front_camera", data=self._camera3_img, compression='gzip', compression_opts=9)
+                self._group_f.create_dataset(f"sim_time", data=self._sim_time_list, compression='gzip', compression_opts=9)
+                self._group_f.create_dataset(f"joint_positions", data=self._joint_positions, compression='gzip', compression_opts=9)
+                self._group_f.create_dataset(f"joint_velocities", data=self._joint_velocities, compression='gzip', compression_opts=9)
 
-        self._f.close()
-        print("Data saved")
+                self._img_f.create_dataset(f"hand_camera", data=self._camera1_img, compression='gzip', compression_opts=9)
+                self._img_f.create_dataset(f"top_camera", data=self._camera2_img, compression='gzip', compression_opts=9)
+                self._img_f.create_dataset(f"front_camera", data=self._camera3_img, compression='gzip', compression_opts=9)
 
-        self._save_count = 0
-        self._world.pause()
+                self._f.close()
+                print("Data saved")
+            elif self._f is None:
+                print("Invalid Operation Data not saved")
+        except Exception as e:
+            print(e)
+        finally:
+            self._f = None
+            self._save_count = 0
+
+            self._world.pause()
 
         return

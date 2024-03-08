@@ -35,8 +35,6 @@ class HelloCamera(BaseSample):
         self._time_list = []
         self._img_list = []
 
-        print("HelloCamera")
-
         return
 
     def setup_camera(self):
