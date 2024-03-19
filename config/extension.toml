@@ -62,3 +62,6 @@ name = "RoadBalanceEdu.URBinFilling"
 
 [[python.module]]
 name = "RoadBalanceEdu.URPalletizing"
+
+[[python.module]]
+name = "RoadBalanceEdu.DingoLibrary"
