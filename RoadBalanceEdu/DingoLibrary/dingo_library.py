@@ -17,6 +17,7 @@ from omni.isaac.core.objects import DynamicCuboid
 from omni.isaac.sensor import Camera
 from omni.isaac.core import World
 import omni.graph.core as og
+import usdrt.Sdf
 
 import omni.isaac.core.utils.numpy.rotations as rot_utils
 from omni.isaac.core import SimulationContext
@@ -42,46 +43,50 @@ class DingoLibrary(BaseSample):
     def og_setup(self):
         camprim1 = "/World/Orbbec_Gemini2/Orbbec_Gemini2/camera_ir_left/camera_left/Stream_depth"
         camprim2 = "/World/Orbbec_Gemini2/Orbbec_Gemini2/camera_rgb/camera_rgb/Stream_rgb"
+
+        maxLinearSpeed = 3.0
+        wheelDistance = 0.23632
+        wheelRadius = 0.049
+        jointNames = ["left_wheel_joint", "right_wheel_joint"]
+        domain_id = 0
+        base_link_prim = "/World/dingo/base_link"
         
         try:
             og.Controller.edit(
-                {"graph_path": "/ActionGraph", "evaluator_name": "execution"},
+                {"graph_path": "/ROS2DiffDrive", "evaluator_name": "execution"},
                 {
                     og.Controller.Keys.CREATE_NODES: [
-                        ("OnPlaybackTick", "omni.graph.action.OnPlaybackTick"),
-                        ("RenderProduct1", "omni.isaac.core_nodes.IsaacCreateRenderProduct"),
-                        ("RenderProduct2", "omni.isaac.core_nodes.IsaacCreateRenderProduct"),
-                        ("RGBPublish", "omni.isaac.ros2_bridge.ROS2CameraHelper"),
-                        ("DepthPublish", "omni.isaac.ros2_bridge.ROS2CameraHelper"),
-                        ("CameraInfoPublish", "omni.isaac.ros2_bridge.ROS2CameraHelper"),
+                        ("onPlaybackTick", "omni.graph.action.OnPlaybackTick"),
+                        ("context", "omni.isaac.ros2_bridge.ROS2Context"),
+                        ("subscribeTwist", "omni.isaac.ros2_bridge.ROS2SubscribeTwist"),
+                        ("scaleToFromStage", "omni.isaac.core_nodes.OgnIsaacScaleToFromStageUnit"),
+                        ("breakLinVel", "omni.graph.nodes.BreakVector3"),
+                        ("breakAngVel", "omni.graph.nodes.BreakVector3"),
+                        ("diffController", "omni.isaac.wheeled_robots.DifferentialController"),
+                        ("artController", "omni.isaac.core_nodes.IsaacArticulationController"),
                     ],
                     og.Controller.Keys.SET_VALUES: [
-                        ("RenderProduct1.inputs:cameraPrim", camprim1),
-                        ("RenderProduct2.inputs:cameraPrim", camprim2),
-
-                        ("RGBPublish.inputs:topicName", "rgb"),
-                        ("RGBPublish.inputs:type", "rgb"),
-                        ("RGBPublish.inputs:resetSimulationTimeOnStop", True),
-
-                        ("DepthPublish.inputs:topicName", "depth"),
-                        ("DepthPublish.inputs:type", "depth"),
-                        ("DepthPublish.inputs:resetSimulationTimeOnStop", True),
-                        
-                        ("CameraInfoPublish.inputs:topicName", "depth_camera_info"),
-                        ("CameraInfoPublish.inputs:type", "camera_info"),
-                        ("CameraInfoPublish.inputs:resetSimulationTimeOnStop", True),
+                        ("diffController.inputs:maxLinearSpeed", maxLinearSpeed),
+                        ("diffController.inputs:wheelDistance", wheelDistance),
+                        ("diffController.inputs:wheelRadius", wheelRadius),
+                        ("artController.inputs:jointNames", jointNames),
+                        ("artController.inputs:usePath", False),
+                        ("artController.inputs:targetPrim", [usdrt.Sdf.Path(base_link_prim)]),
+                        ("context.inputs:domain_id", domain_id),
                     ],
                     og.Controller.Keys.CONNECT: [
-                        ("OnPlaybackTick.outputs:tick", "RenderProduct1.inputs:execIn"),
-                        ("OnPlaybackTick.outputs:tick", "RenderProduct2.inputs:execIn"),
-
-                        ("RenderProduct1.outputs:execOut", "DepthPublish.inputs:execIn"),
-                        ("RenderProduct1.outputs:execOut", "CameraInfoPublish.inputs:execIn"),
-                        ("RenderProduct2.outputs:execOut", "RGBPublish.inputs:execIn"),                    
-                    
-                        ("RenderProduct1.outputs:renderProductPath", "DepthPublish.inputs:renderProductPath"),
-                        ("RenderProduct1.outputs:renderProductPath", "CameraInfoPublish.inputs:renderProductPath"),
-                        ("RenderProduct2.outputs:renderProductPath", "RGBPublish.inputs:renderProductPath"),
+                        ("onPlaybackTick.outputs:tick", "subscribeTwist.inputs:execIn"),
+                        ("onPlaybackTick.outputs:tick", "artController.inputs:execIn"),
+                        ("context.outputs:context", "subscribeTwist.inputs:context"),
+                        ("subscribeTwist.outputs:execOut", "diffController.inputs:execIn"),
+                        ("subscribeTwist.outputs:angularVelocity", "breakAngVel.inputs:tuple"),
+                        ("subscribeTwist.outputs:linearVelocity", "scaleToFromStage.inputs:value"),
+                        ("scaleToFromStage.outputs:result", "breakLinVel.inputs:tuple"),
+                        ("breakAngVel.outputs:z", "diffController.inputs:angularVelocity"),
+                        ("breakLinVel.outputs:x", "diffController.inputs:linearVelocity"),
+                        # ("diffController.outputs:effortCommand", "artController.inputs:effortCommand"),
+                        # ("diffController.outputs:positionCommand", "artController.inputs:positionCommand"),
+                        ("diffController.outputs:velocityCommand", "artController.inputs:velocityCommand"),
                     ],
                 },
             )
@@ -153,6 +158,7 @@ class DingoLibrary(BaseSample):
         
         self.add_background()
         self.add_dingo()
+        self.og_setup()
         
         return
 
