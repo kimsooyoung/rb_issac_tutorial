@@ -52,6 +52,7 @@ class DingoLibrary(BaseSample):
         base_link_prim = "/World/dingo/base_link"
         
         try:
+            # Twist OG
             og.Controller.edit(
                 {"graph_path": "/ROS2DiffDrive", "evaluator_name": "execution"},
                 {
@@ -90,6 +91,67 @@ class DingoLibrary(BaseSample):
                     ],
                 },
             )
+
+            # Static TF OG
+            og.Controller.edit(
+                {"graph_path": "/ROS2TF", "evaluator_name": "execution"},
+                {
+                    og.Controller.Keys.CREATE_NODES: [
+                        ("onPlaybackTick", "omni.graph.action.OnPlaybackTick"),
+                        ("context", "omni.isaac.ros2_bridge.ROS2Context"),
+                        ("readSimTime", "omni.isaac.core_nodes.IsaacReadSimulationTime"),
+                        ("publishTF", "omni.isaac.ros2_bridge.ROS2PublishTransformTree"),
+                    ],
+                    og.Controller.Keys.SET_VALUES: [
+                        ("publishTF.inputs:parentPrim", [usdrt.Sdf.Path("/World/dingo/base_link")]),
+                        ("publishTF.inputs:targetPrims", [
+                            usdrt.Sdf.Path("/World/dingo/left_wheel_link"),
+                            usdrt.Sdf.Path("/World/dingo/right_wheel_link"),
+                            usdrt.Sdf.Path("/World/dingo/base_link/velodyne_frame"),
+                            usdrt.Sdf.Path("/World/dingo/base_link/realsense_frame"),
+                        ]),
+                    ],
+                    og.Controller.Keys.CONNECT: [
+                        ("onPlaybackTick.outputs:tick", "publishTF.inputs:execIn"),
+                        ("context.outputs:context", "publishTF.inputs:context"),
+                        ("readSimTime.outputs:simulationTime", "publishTF.inputs:timeStamp"),
+                    ],
+                },
+            )
+
+            # Odom TF OG
+            og.Controller.edit(
+                {"graph_path": "/ROS2Odom", "evaluator_name": "execution"},
+                {
+                    og.Controller.Keys.CREATE_NODES: [
+                        ("onPlaybackTick", "omni.graph.action.OnPlaybackTick"),
+                        ("context", "omni.isaac.ros2_bridge.ROS2Context"),
+                        ("readSimTime", "omni.isaac.core_nodes.IsaacReadSimulationTime"),
+                        ("computeOdom", "omni.isaac.core_nodes.IsaacComputeOdometry"),
+                        ("publishOdom", "omni.isaac.ros2_bridge.ROS2PublishOdometry"),
+                        ("publishRawTF", "omni.isaac.ros2_bridge.ROS2PublishRawTransformTree"),
+                    ],
+                    og.Controller.Keys.SET_VALUES: [
+                        ("computeOdom.inputs:chassisPrim", [usdrt.Sdf.Path("/World/dingo")]),
+                    ],
+                    og.Controller.Keys.CONNECT: [
+                        ("onPlaybackTick.outputs:tick", "computeOdom.inputs:execIn"),
+                        ("onPlaybackTick.outputs:tick", "publishOdom.inputs:execIn"),
+                        ("onPlaybackTick.outputs:tick", "publishRawTF.inputs:execIn"),
+                        ("readSimTime.outputs:simulationTime", "publishOdom.inputs:timeStamp"),
+                        ("readSimTime.outputs:simulationTime", "publishRawTF.inputs:timeStamp"),
+                        ("context.outputs:context", "publishOdom.inputs:context"),
+                        ("context.outputs:context", "publishRawTF.inputs:context"),
+                        ("computeOdom.outputs:angularVelocity", "publishOdom.inputs:angularVelocity"),
+                        ("computeOdom.outputs:linearVelocity", "publishOdom.inputs:linearVelocity"),
+                        ("computeOdom.outputs:orientation", "publishOdom.inputs:orientation"),
+                        ("computeOdom.outputs:position", "publishOdom.inputs:position"),
+                        ("computeOdom.outputs:orientation", "publishRawTF.inputs:rotation"),
+                        ("computeOdom.outputs:position", "publishRawTF.inputs:translation"),
+                    ],
+                },
+            )
+
         except Exception as e:
             print(e)
 
